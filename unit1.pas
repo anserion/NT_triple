@@ -41,6 +41,7 @@ type
     BTN_learn_check: TButton;
     BTN_orig1_error: TButton;
     BTN_reset: TButton;
+    BTN_1000: TButton;
     Edit_out_2_2: TEdit;
     Edit_out_2_3: TEdit;
     Edit_out_2_4: TEdit;
@@ -191,6 +192,7 @@ type
     PB_w_1_3: TPaintBox;
     PB_w_1_4: TPaintBox;
     PB_w_1_5: TPaintBox;
+    procedure BTN_1000Click(Sender: TObject);
     procedure BTN_learn_checkClick(Sender: TObject);
     procedure BTN_orig1_drawClick(Sender: TObject);
     procedure BTN_orig_createClick(Sender: TObject);
@@ -204,6 +206,8 @@ type
     procedure PB_receptorsMouseDown(Sender: TObject; Button: TMouseButton;
       Shift: TShiftState; X, Y: Integer);
     procedure PB_receptorsPaint(Sender: TObject);
+    procedure PB_w_1_1MouseDown(Sender: TObject; Button: TMouseButton;
+      Shift: TShiftState; X, Y: Integer);
     procedure PB_w_1_1Paint(Sender: TObject);
   private
     procedure Forward_step;
@@ -222,27 +226,29 @@ const
   n_L1=5;
   n_L2=5;
   n_L3=4;
-  alpha_BPA=0.1;
+  alpha_BPA=0.5;
 
 var
   Form1: TForm1;
 
   L1_w:array[1..n_L1,1..s_width,1..s_height] of real;
+  L1_bias:array[1..n_L1]of real;
   L1_scalar:array[1..n_L1]of real;
   L1_out:array[1..n_L1]of real;
 
   L2_w:array[1..n_L2,1..n_L1] of real;
+  L2_bias:array[1..n_L2]of real;
   L2_scalar:array[1..n_L2]of real;
   L2_out:array[1..n_L2]of real;
 
   L3_w:array[1..n_L3,1..n_L2] of real;
+  L3_bias:array[1..n_L3]of real;
   L3_scalar:array[1..n_L3]of real;
   L3_out:array[1..n_L3]of real;
 
   S_elements: array[1..s_width,1..s_height]of integer;
   Orig_elements: array[1..n_origs,1..s_width,1..s_height]of integer;
   Target_elements: array[1..n_L3]of real;
-  good1,good2,good3,good4:integer;
 
   sigma1:array[1..n_L1] of real;
   sigma2:array[1..n_L2] of real;
@@ -251,6 +257,8 @@ var
   error_target_to_L3:array[1..n_L3]of real;
   error_L3_to_L2:array[1..n_L2]of real;
   error_L2_to_L1:array[1..n_L1]of real;
+
+  total_percent:integer;
   BackTrace_flag:boolean;
 
 implementation
@@ -260,58 +268,10 @@ implementation
 function sigmoid(x:real):real;
 begin sigmoid:=1/(1+exp(-x)); end;
 
-function d_sigmoid(y:real):real;
-begin d_sigmoid:=y*(1-y); end;
-
 { TForm1 }
 
-procedure TForm1.BackTraceError_step;
-var i,k:integer;
-begin
-  for i:=1 to n_L3 do
-  begin
-    error_target_to_L3[i]:=Target_elements[i]-L3_out[i];
-    sigma3[i]:=d_sigmoid(L3_out[i])*error_target_to_L3[i];
-  end;
-
-  for i:=1 to n_L2 do
-  begin
-    error_L3_to_L2[i]:=0;
-    for k:=1 to n_L3 do
-      error_L3_to_L2[i]:=error_L3_to_L2[i]+sigma3[k]*L3_w[k,i];
-    sigma2[i]:=d_sigmoid(L2_out[i])*error_L3_to_L2[i];
-  end;
-
-  for i:=1 to n_L1 do
-  begin
-    error_L2_to_L1[i]:=0;
-    for k:=1 to n_L2 do
-      error_L2_to_L1[i]:=error_L2_to_L1[i]+sigma2[k]*L2_w[k,i];
-    sigma1[i]:=d_sigmoid(L1_out[i])*error_L2_to_L1[i];
-  end;
-end;
-
-procedure TForm1.BackTraceLearn_step;
-var cell_x,cell_y,i,k:integer;
-begin
-  for i:=1 to n_L3 do
-    for k:=1 to n_L2 do
-      L3_w[i,k]:=L3_w[i,k]+sigma3[i]*L2_out[k]*alpha_BPA;
-
-  for i:=1 to n_L2 do
-    for k:=1 to n_L1 do
-      L2_w[i,k]:=L2_w[i,k]+sigma2[i]*L1_out[k]*alpha_BPA;
-
-  for i:=1 to n_L1 do
-    for cell_x:=1 to s_width do
-      for cell_y:=1 to s_height do
-        L1_w[i,cell_x,cell_y]:=L1_w[i,cell_x,cell_y]+sigma1[i]*S_elements[cell_x,cell_y]*alpha_BPA;
-end;
-
 procedure TForm1.Forward_step;
-var
-  i,k,cell_x,cell_y:integer;
-  dist1,dist2,dist3,dist4:real;
+var i,k,cell_x,cell_y:integer;
 begin
   BackTrace_flag:=false;
 
@@ -321,14 +281,14 @@ begin
     for cell_x:=1 to s_width do
       for cell_y:=1 to s_height do
         L1_scalar[k]:=L1_scalar[k]+L1_w[k,cell_x,cell_y]*S_elements[cell_x,cell_y];
-    L1_out[k]:=sigmoid(L1_scalar[k]);
+    L1_out[k]:=sigmoid(L1_scalar[k]+L1_bias[k]);
   end;
 
   for k:=1 to n_L2 do
   begin
     L2_scalar[k]:=0;
     for i:=1 to n_L1 do L2_scalar[k]:=L2_scalar[k]+L2_w[k,i]*L1_out[i];
-    L2_out[k]:=sigmoid(L2_scalar[k]);
+    L2_out[k]:=sigmoid(L2_scalar[k]+L2_bias[k]);
   end;
 
   for k:=1 to n_L3 do
@@ -336,30 +296,83 @@ begin
     L3_scalar[k]:=0;
     for i:=1 to n_L2 do
       L3_scalar[k]:=L3_scalar[k]+L3_w[k,i]*L2_out[i];
-    L3_out[k]:=sigmoid(L3_scalar[k]);
+    L3_out[k]:=sigmoid(L3_scalar[k]+L3_bias[k]);
   end;
+end;
 
-  dist1:=0; dist2:=0; dist3:=0; dist4:=0;
-  for k:=1 to n_L3 do
+procedure TForm1.BackTraceError_step;
+var i,k:integer;
+begin
+  for i:=1 to n_L3 do
   begin
-    dist1:=dist1+sqr(Orig_elements[1,cell_x,cell_y]-L3_out[k]);
-    dist2:=dist2+sqr(Orig_elements[2,cell_x,cell_y]-L3_out[k]);
-    dist3:=dist3+sqr(Orig_elements[3,cell_x,cell_y]-L3_out[k]);
-    dist4:=dist4+sqr(Orig_elements[4,cell_x,cell_y]-L3_out[k]);
+    error_target_to_L3[i]:=-(Target_elements[i]-L3_out[i]);
+    sigma3[i]:=error_target_to_L3[i]*L3_out[i]*(1-L3_out[i]);
   end;
 
-  good1:=trunc((1-sqrt(dist1)/(s_width*s_height)) * 100);
-  good2:=trunc((1-sqrt(dist2)/(s_width*s_height)) * 100);
-  good3:=trunc((1-sqrt(dist3)/(s_width*s_height)) * 100);
-  good4:=trunc((1-sqrt(dist4)/(s_width*s_height)) * 100);
+  for i:=1 to n_L2 do
+  begin
+    error_L3_to_L2[i]:=0;
+    for k:=1 to n_L3 do
+      error_L3_to_L2[i]:=error_L3_to_L2[i]+sigma3[k]*L3_w[k,i];
+    sigma2[i]:=error_L3_to_L2[i]*L2_out[i]*(1-L2_out[i]);
+  end;
+
+  for i:=1 to n_L1 do
+  begin
+    error_L2_to_L1[i]:=0;
+    for k:=1 to n_L2 do
+      error_L2_to_L1[i]:=error_L2_to_L1[i]+sigma2[k]*L2_w[k,i];
+    sigma1[i]:=error_L2_to_L1[i]*L1_out[i]*(1-L1_out[i]);
+  end;
+end;
+
+procedure TForm1.BackTraceLearn_step;
+var cell_x,cell_y,i,k:integer;
+begin
+  for i:=1 to n_L1 do
+    for cell_x:=1 to s_width do
+      for cell_y:=1 to s_height do
+        L1_w[i,cell_x,cell_y]:=L1_w[i,cell_x,cell_y]-alpha_BPA*sigma1[i]*S_elements[cell_x,cell_y];
+
+  for i:=1 to n_L2 do
+    for k:=1 to n_L1 do
+      L2_w[i,k]:=L2_w[i,k]-alpha_BPA*sigma2[i]*L1_out[k];
+
+  for i:=1 to n_L3 do
+    for k:=1 to n_L2 do
+      L3_w[i,k]:=L3_w[i,k]-alpha_BPA*sigma3[i]*L2_out[k];
+end;
+
+procedure TForm1.BTN_orig1_learnClick(Sender: TObject);
+var i:integer;
+begin
+  for i:=1 to n_L3 do Target_elements[i]:=0;
+  with Sender as TButton do Target_elements[tag]:=1;
+
+  Forward_step;
+  BackTraceError_step;
+  BackTraceLearn_step;
+  Forward_step;
+  BackTrace_flag:=true;
+  Redraw_widgets;
+end;
+
+procedure TForm1.BTN_orig1_errorClick(Sender: TObject);
+var i:integer;
+begin
+  for i:=1 to n_L3 do Target_elements[i]:=0;
+  with Sender as TButton do Target_elements[tag]:=1;
+
+  Forward_step;
+  BackTraceError_step;
+  BackTrace_flag:=true;
+  Redraw_widgets;
 end;
 
 procedure TForm1.Redraw_widgets;
+var tmp:integer;
 begin
-//  Label_orig1.caption:='Эталон 1 ('+IntToStr(good1)+'%)';
-//  Label_orig2.caption:='Эталон 2 ('+IntToStr(good2)+'%)';
-//  Label_orig3.caption:='Эталон 3 ('+IntToStr(good3)+'%)';
-//  Label_orig4.caption:='Эталон 4 ('+IntToStr(good4)+'%)';
+  Label_total.caption:=IntToStr(total_percent)+'%';
 
   Label_L1_neuron1.caption:='нейрон 1';
   Label_L1_neuron2.caption:='нейрон 2';
@@ -380,22 +393,22 @@ begin
 
   if BackTrace_flag then
   begin
-    Label_L1_neuron1.caption:='нейрон 1. E='+FloatToStrF(error_L2_to_L1[1],ffFixed,4,2);
-    Label_L1_neuron2.caption:='нейрон 2. E='+FloatToStrF(error_L2_to_L1[2],ffFixed,4,2);
-    Label_L1_neuron3.caption:='нейрон 3. E='+FloatToStrF(error_L2_to_L1[3],ffFixed,4,2);
-    Label_L1_neuron4.caption:='нейрон 4. E='+FloatToStrF(error_L2_to_L1[4],ffFixed,4,2);
-    Label_L1_neuron5.caption:='нейрон 5. E='+FloatToStrF(error_L2_to_L1[5],ffFixed,4,2);
+    Label_L1_neuron1.caption:='нейрон 1. dE='+FloatToStrF(error_L2_to_L1[1],ffFixed,4,3);
+    Label_L1_neuron2.caption:='нейрон 2. dE='+FloatToStrF(error_L2_to_L1[2],ffFixed,4,3);
+    Label_L1_neuron3.caption:='нейрон 3. dE='+FloatToStrF(error_L2_to_L1[3],ffFixed,4,3);
+    Label_L1_neuron4.caption:='нейрон 4. dE='+FloatToStrF(error_L2_to_L1[4],ffFixed,4,3);
+    Label_L1_neuron5.caption:='нейрон 5. dE='+FloatToStrF(error_L2_to_L1[5],ffFixed,4,3);
 
-    Label_L2_neuron1.caption:='нейрон 6. E='+FloatToStrF(error_L3_to_L2[1],ffFixed,4,2);
-    Label_L2_neuron2.caption:='нейрон 7. E='+FloatToStrF(error_L3_to_L2[2],ffFixed,4,2);
-    Label_L2_neuron3.caption:='нейрон 8. E='+FloatToStrF(error_L3_to_L2[3],ffFixed,4,2);
-    Label_L2_neuron4.caption:='нейрон 9. E='+FloatToStrF(error_L3_to_L2[4],ffFixed,4,2);
-    Label_L2_neuron5.caption:='нейрон 10. E='+FloatToStrF(error_L3_to_L2[5],ffFixed,4,2);
+    Label_L2_neuron1.caption:='нейрон 6. dE='+FloatToStrF(error_L3_to_L2[1],ffFixed,4,3);
+    Label_L2_neuron2.caption:='нейрон 7. dE='+FloatToStrF(error_L3_to_L2[2],ffFixed,4,3);
+    Label_L2_neuron3.caption:='нейрон 8. dE='+FloatToStrF(error_L3_to_L2[3],ffFixed,4,3);
+    Label_L2_neuron4.caption:='нейрон 9. dE='+FloatToStrF(error_L3_to_L2[4],ffFixed,4,3);
+    Label_L2_neuron5.caption:='нейрон 10. dE='+FloatToStrF(error_L3_to_L2[5],ffFixed,4,3);
 
-    Label_L3_neuron1.caption:='нейрон 11. E='+FloatToStrF(error_target_to_L3[1],ffFixed,4,2);
-    Label_L3_neuron2.caption:='нейрон 12. E='+FloatToStrF(error_target_to_L3[2],ffFixed,4,2);
-    Label_L3_neuron3.caption:='нейрон 13. E='+FloatToStrF(error_target_to_L3[3],ffFixed,4,2);
-    Label_L3_neuron4.caption:='нейрон 14. E='+FloatToStrF(error_target_to_L3[4],ffFixed,4,2);
+    Label_L3_neuron1.caption:='нейрон 11. dE='+FloatToStrF(error_target_to_L3[1],ffFixed,4,3);
+    Label_L3_neuron2.caption:='нейрон 12. dE='+FloatToStrF(error_target_to_L3[2],ffFixed,4,3);
+    Label_L3_neuron3.caption:='нейрон 13. dE='+FloatToStrF(error_target_to_L3[3],ffFixed,4,3);
+    Label_L3_neuron4.caption:='нейрон 14. dE='+FloatToStrF(error_target_to_L3[4],ffFixed,4,3);
   end;
 
   Edit_scalar_1_1.text:=FloatToStrF(L1_scalar[1],ffFixed,5,3);
@@ -486,10 +499,22 @@ begin
   Edit_out_3_3.text:=FloatToStrF(L3_out[3],ffFixed,5,3);
   Edit_out_3_4.text:=FloatToStrF(L3_out[4],ffFixed,5,3);
 
-  if L3_out[1]>0.5 then Label_L3_neuron1.Color:=clGreen else Label_L3_neuron1.Color:=clDefault;
-  if L3_out[2]>0.5 then Label_L3_neuron2.Color:=clGreen else Label_L3_neuron2.Color:=clDefault;
-  if L3_out[3]>0.5 then Label_L3_neuron3.Color:=clGreen else Label_L3_neuron3.Color:=clDefault;
-  if L3_out[4]>0.5 then Label_L3_neuron4.Color:=clGreen else Label_L3_neuron4.Color:=clDefault;
+  tmp:=1;
+  if L3_out[1]>L3_out[tmp] then tmp:=1;
+  if L3_out[2]>L3_out[tmp] then tmp:=2;
+  if L3_out[3]>L3_out[tmp] then tmp:=3;
+  if L3_out[4]>L3_out[tmp] then tmp:=4;
+
+  Label_L3_neuron1.Color:=clDefault;
+  Label_L3_neuron2.Color:=clDefault;
+  Label_L3_neuron3.Color:=clDefault;
+  Label_L3_neuron4.Color:=clDefault;
+  case tmp of
+  1: Label_L3_neuron1.Color:=clGreen;
+  2: Label_L3_neuron2.Color:=clGreen;
+  3: Label_L3_neuron3.Color:=clGreen;
+  4: Label_L3_neuron4.Color:=clGreen;
+  end;
 
   PB_w_1_1Paint(PB_w_1_1);
   PB_w_1_1Paint(PB_w_1_2);
@@ -550,8 +575,8 @@ begin
      else Canvas.Brush.Color:=clWhite;
      Canvas.Rectangle(trunc((cell_x-1)*dx),trunc((cell_y-1)*dy),
                       trunc(cell_x*dx),trunc(cell_y*dy));
-     Forward_step;
   end;
+  Forward_step;
   Redraw_widgets;
 end;
 
@@ -575,6 +600,28 @@ begin
   end;
 end;
 
+procedure TForm1.PB_w_1_1MouseDown(Sender: TObject; Button: TMouseButton;
+  Shift: TShiftState; X, Y: Integer);
+var cell_x,cell_y:integer; dx,dy,value:real; s:string;
+begin
+  with (sender as TPaintBox) do
+  begin
+    dx:=width/s_width;
+    dy:=Height/s_height;
+    cell_x:=trunc(X/dx)+1;
+    cell_y:=trunc(Y/dy)+1;
+    value:=L1_w[tag,cell_x,cell_y];
+    s:='w('+IntToStr(cell_x)+','+IntToStr(cell_y)+')='+FloatToStrF(value,fffixed,5,3);
+    case tag of
+    1: Label_L1_neuron1.Caption:='нейрон 1 '+s;
+    2: Label_L1_neuron2.Caption:='нейрон 2 '+s;
+    3: Label_L1_neuron3.Caption:='нейрон 3 '+s;
+    4: Label_L1_neuron4.Caption:='нейрон 4 '+s;
+    5: Label_L1_neuron5.Caption:='нейрон 5 '+s;
+    end;
+  end;
+end;
+
 procedure TForm1.PB_w_1_1Paint(Sender: TObject);
 var cell_x,cell_y:integer; dx,dy:real; w_min,w_max:real; C:byte;
 begin
@@ -582,7 +629,7 @@ begin
   begin
     w_min:=L1_w[tag,1,1]; w_max:=L1_w[tag,1,1];
     for cell_x:=1 to s_width do
-      for cell_y:=1 to s_width do
+      for cell_y:=1 to s_height do
       begin
         if L1_w[tag,cell_x,cell_y]<w_min then w_min:=L1_w[tag,cell_x,cell_y];
         if L1_w[tag,cell_x,cell_y]>w_max then w_max:=L1_w[tag,cell_x,cell_y];
@@ -596,7 +643,7 @@ begin
       for cell_y:=1 to s_height do
       begin
         if w_max-w_min<>0
-        then C:=255-trunc(255*L1_w[tag,cell_x,cell_y]/(w_max-w_min))
+        then C:=255-trunc(255*(L1_w[tag,cell_x,cell_y]-w_min)/(w_max-w_min))
         else C:=255;
         Canvas.Brush.Color:=RGBToColor(C,C,C);
         Canvas.Rectangle(trunc((cell_x-1)*dx),trunc((cell_y-1)*dy),
@@ -624,8 +671,66 @@ begin
 end;
 
 procedure TForm1.BTN_learn_checkClick(Sender: TObject);
+var orig_tag,k,nn,cell_x,cell_y,winner:integer; total_errors:real;
 begin
-  Forward_step;
+  total_errors:=0;
+  for nn:=1 to 1000 do
+  begin
+    orig_tag:=random(n_origs)+1;
+
+    for k:=1 to n_origs do Target_elements[k]:=0;
+    Target_elements[orig_tag]:=1;
+
+    for cell_x:=1 to s_width do
+      for cell_y:=1 to s_height do
+        S_elements[cell_x,cell_y]:=Orig_elements[orig_tag,cell_x,cell_y];
+    cell_x:=random(s_width)+1; cell_y:=random(s_height)+1; S_elements[cell_x,cell_y]:=1;
+    cell_x:=random(s_width)+1; cell_y:=random(s_height)+1; S_elements[cell_x,cell_y]:=0;
+
+    Forward_step;
+    winner:=1;
+    for k:=1 to n_L3 do
+      if L3_out[k]>L3_out[winner] then winner:=k;
+
+    if winner<>orig_tag then total_errors:=total_errors+1;
+  end;
+
+  total_errors:=total_errors/nn;
+  total_percent:=100-trunc(total_errors*100);
+
+  for cell_x:=1 to s_width do
+    for cell_y:=1 to s_height do
+      S_elements[cell_x,cell_y]:=0;
+  PB_receptorsPaint(self);
+  Redraw_widgets;
+end;
+
+procedure TForm1.BTN_1000Click(Sender: TObject);
+var i,k,cell_x,cell_y,orig_tag:integer;
+begin
+  for i:=1 to 1000 do
+  begin
+    orig_tag:=random(n_origs)+1;
+
+    for k:=1 to n_L3 do Target_elements[k]:=0;
+    Target_elements[orig_tag]:=1;
+
+    for cell_x:=1 to s_width do
+      for cell_y:=1 to s_height do
+        S_elements[cell_x,cell_y]:=Orig_elements[orig_tag,cell_x,cell_y];
+    cell_x:=random(s_width)+1; cell_y:=random(s_height)+1; S_elements[cell_x,cell_y]:=1;
+    cell_x:=random(s_width)+1; cell_y:=random(s_height)+1; S_elements[cell_x,cell_y]:=0;
+
+    Forward_step;
+    BackTraceError_step;
+    BackTraceLearn_step;
+  end;
+
+  for cell_x:=1 to s_width do
+    for cell_y:=1 to s_height do
+      S_elements[cell_x,cell_y]:=0;
+
+  PB_receptorsPaint(PB_receptors);
   Redraw_widgets;
 end;
 
@@ -665,32 +770,6 @@ begin
   PB_orig1Paint(PB_orig4);
 end;
 
-procedure TForm1.BTN_orig1_learnClick(Sender: TObject);
-var i:integer;
-begin
-  for i:=1 to n_L3 do Target_elements[i]:=0;
-  with Sender as TButton do Target_elements[tag]:=1;
-
-  BackTraceError_step;
-  BackTraceLearn_step;
-  Forward_step;
-  BackTraceError_step;
-  BackTrace_flag:=true;
-  Redraw_widgets;
-end;
-
-procedure TForm1.BTN_orig1_errorClick(Sender: TObject);
-var i:integer;
-begin
-  for i:=1 to n_L3 do Target_elements[i]:=0;
-  with Sender as TButton do Target_elements[tag]:=1;
-
-  Forward_step;
-  BackTraceError_step;
-  BackTrace_flag:=true;
-  Redraw_widgets;
-end;
-
 procedure TForm1.BTN_resetClick(Sender: TObject);
 var i,k,cell_x,cell_y:integer;
 begin
@@ -701,17 +780,26 @@ begin
          S_elements[cell_x,cell_y]:=0;
 
      for k:=1 to n_L1 do
+     begin
+       L1_bias[k]:=0;
        for cell_x:=1 to s_width do
          for cell_y:=1 to s_height do
-           L1_w[k,cell_x,cell_y]:=(random-0.5)/100;
+           L1_w[k,cell_x,cell_y]:=(random)/5;
+     end;
 
      for k:=1 to n_L2 do
+     begin
+       L2_bias[k]:=0;
        for i:=1 to n_L1 do
-         L2_w[k,i]:=(random-0.5)/100;
+         L2_w[k,i]:=(random)/5;
+     end;
 
      for k:=1 to n_L3 do
+     begin
+       L3_bias[k]:=0;
        for i:=1 to n_L2 do
-         L3_w[k,i]:=(random-0.5)/100;
+         L3_w[k,i]:=(random)/5;
+     end;
 
      BackTrace_flag:=false;
      PB_receptorsPaint(self);

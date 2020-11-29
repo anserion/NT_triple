@@ -37,6 +37,7 @@ object Form1: TForm1
         Top = 16
         Width = 85
         ParentFont = False
+        OnMouseDown = PB_w_1_1MouseDown
         OnPaint = PB_w_1_1Paint
       end
       object Label_L1_neuron1: TLabel
@@ -104,6 +105,7 @@ object Form1: TForm1
         Top = 16
         Width = 85
         ParentFont = False
+        OnMouseDown = PB_w_1_1MouseDown
         OnPaint = PB_w_1_1Paint
       end
       object Label_scalar_1_2: TLabel
@@ -170,6 +172,7 @@ object Form1: TForm1
         Top = 16
         Width = 85
         ParentFont = False
+        OnMouseDown = PB_w_1_1MouseDown
         OnPaint = PB_w_1_1Paint
       end
       object Label_scalar_1_3: TLabel
@@ -236,6 +239,7 @@ object Form1: TForm1
         Top = 16
         Width = 85
         ParentFont = False
+        OnMouseDown = PB_w_1_1MouseDown
         OnPaint = PB_w_1_1Paint
       end
       object Label_scalar_1_4: TLabel
@@ -302,6 +306,7 @@ object Form1: TForm1
         Top = 16
         Width = 85
         ParentFont = False
+        OnMouseDown = PB_w_1_1MouseDown
         OnPaint = PB_w_1_1Paint
       end
       object Label_scalar_1_5: TLabel
@@ -1584,5 +1589,14 @@ object Form1: TForm1
         ParentColor = False
       end
     end
+  end
+  object BTN_1000: TButton
+    Left = 856
+    Height = 40
+    Top = 560
+    Width = 136
+    Caption = 'Обучить 1000 раз'
+    OnClick = BTN_1000Click
+    TabOrder = 19
   end
 end
