@@ -671,10 +671,10 @@ begin
 end;
 
 procedure TForm1.BTN_learn_checkClick(Sender: TObject);
-var orig_tag,k,nn,cell_x,cell_y,winner:integer; total_errors:real;
+var orig_tag,k,nn,nnn,cell_x,cell_y,winner:integer; total_errors:real;
 begin
-  total_errors:=0;
-  for nn:=1 to 1000 do
+  total_errors:=0; nnn:=1000;
+  for nn:=1 to nnn do
   begin
     orig_tag:=random(n_origs)+1;
 
@@ -695,7 +695,7 @@ begin
     if winner<>orig_tag then total_errors:=total_errors+1;
   end;
 
-  total_errors:=total_errors/nn;
+  total_errors:=total_errors/nnn;
   total_percent:=100-trunc(total_errors*100);
 
   for cell_x:=1 to s_width do
@@ -706,9 +706,10 @@ begin
 end;
 
 procedure TForm1.BTN_1000Click(Sender: TObject);
-var i,k,cell_x,cell_y,orig_tag:integer;
+var i,k,cell_x,cell_y,orig_tag,nnn:integer;
 begin
-  for i:=1 to 1000 do
+  nnn:=1000;
+  for i:=1 to nnn do
   begin
     orig_tag:=random(n_origs)+1;
 
@@ -752,15 +753,15 @@ procedure TForm1.BTN_orig_createClick(Sender: TObject);
 var i,k,cell_x,cell_y,rnd_x,rnd_y:integer;
 begin
   for i:=1 to n_origs do
-    for cell_y:=1 to s_width do
-      for cell_x:=1 to s_height do
+    for cell_x:=1 to s_width do
+      for cell_y:=1 to s_height do
         Orig_elements[i,cell_x,cell_y]:=0;
 
   for i:=1 to n_origs do
     for k:=1 to 10 do
     begin
-      rnd_x:=random(5)+1;
-      rnd_y:=random(5)+1;
+      rnd_x:=random(s_width)+1;
+      rnd_y:=random(s_height)+1;
       Orig_elements[i,rnd_x,rnd_y]:=1;
     end;
 
